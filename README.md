@@ -1,2 +1,2 @@
 # HealthKitClient
-A very simple HealthKit wrapper
+A very simple wrapper for Apple's HealthKit framework.
