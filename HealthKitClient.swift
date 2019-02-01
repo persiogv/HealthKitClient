@@ -42,7 +42,8 @@ struct HealthKitClient {
     ///   - typesToShare: A Set containing the types to share
     ///   - typesToRead: A Set containing the types to read
     ///   - completion: An encapsulated throwable closure
-    func requestAuthorization(toShare typesToShare: Set<HKSampleType>?, toRead typesToRead: Set<HKSampleType>?, completion: @escaping AuthorizationRequestCompletion) {
+    static func requestAuthorization(toShare typesToShare: Set<HKSampleType>?, toRead typesToRead: Set<HKSampleType>?, completion: @escaping AuthorizationRequestCompletion) {
+        let store = HKHealthStore()
         store.requestAuthorization(toShare: typesToShare, read: typesToRead) { (success, error) in
             guard let error = error else {
                 return completion {
@@ -63,8 +64,9 @@ struct HealthKitClient {
     ///   - limit: Specify the maximum results to be returned (0 means no limit)
     ///   - sortDescriptors: An optional sort descriptor to order de results
     ///   - completion: An encapsulated throwable closure
-    func searchForQuantitySamplesOfType(_ type: HKQuantityType, predicate: NSPredicate?, limit: Int, sortDescriptors: [NSSortDescriptor]?, completion: @escaping SearchCompletion) {
+    static func searchForQuantitySamplesOfType(_ type: HKQuantityType, predicate: NSPredicate?, limit: Int, sortDescriptors: [NSSortDescriptor]?, completion: @escaping SearchCompletion) {
         if HKHealthStore.isHealthDataAvailable() {
+            let store = HKHealthStore()
             switch store.authorizationStatus(for: type) {
             case .notDetermined:
                 completion { throw HealthKitClientError.authorizationPendingToReadType(type: type) }
@@ -76,7 +78,7 @@ struct HealthKitClient {
                     }
                     completion { throw HealthKitClientError.unhandledError(error: error) }
                 }
-                self.store.execute(query)
+                store.execute(query)
             }
         } else {
             completion { throw HealthKitClientError.healthDataUnavailable }
@@ -88,8 +90,9 @@ struct HealthKitClient {
     /// - Parameters:
     ///   - sample: The sample to be stored
     ///   - completion: An encapsulated throwable closure
-    func storeQuantitySample(_ sample: HKQuantitySample, completion: @escaping StoreCompletion) {
+    static func storeQuantitySample(_ sample: HKQuantitySample, completion: @escaping StoreCompletion) {
         if HKHealthStore.isHealthDataAvailable() {
+            let store = HKHealthStore()
             let authorization = store.authorizationStatus(for: sample.quantityType)
             switch authorization {
             case .sharingAuthorized:
@@ -112,17 +115,18 @@ struct HealthKitClient {
     /// - Parameters:
     ///   - sample: The sample to be updated
     ///   - completion: An encapsulated throwable closure
-    func updateQuantitySample(_ sample: HKQuantitySample, completion: @escaping UpdateCompletion) {
+    static func updateQuantitySample(_ sample: HKQuantitySample, completion: @escaping UpdateCompletion) {
         let predicate = NSPredicate(format: "startDate == %@ AND endDate == %@", argumentArray: [sample.startDate, sample.endDate])
         searchForQuantitySamplesOfType(sample.quantityType, predicate: predicate, limit: 1, sortDescriptors: nil) { (results) in
             do {
                 let samples = try results()
                 guard let sampleToDelete = samples?.first else { return completion { return false } }
-                self.deleteQuantitySample(sampleToDelete, completion: { (success) in
+                deleteQuantitySample(sampleToDelete, completion: { (success) in
                     do {
                         let success = try success()
                         if success {
-                            self.store.save(sample, withCompletion: { (success, error) in
+                            let store = HKHealthStore()
+                            store.save(sample, withCompletion: { (success, error) in
                                 completion { return success && error == nil }
                             })
                         } else {
@@ -143,13 +147,14 @@ struct HealthKitClient {
     /// - Parameters:
     ///   - sample: The sample to be deleted
     ///   - completion: An encapsulated throwable closure
-    func deleteQuantitySample(_ sample: HKQuantitySample, completion: @escaping DeleteCompletion) {
+    static func deleteQuantitySample(_ sample: HKQuantitySample, completion: @escaping DeleteCompletion) {
         let predicate = NSPredicate(format: "startDate == %@ AND endDate == %@", argumentArray: [sample.startDate, sample.endDate])
         searchForQuantitySamplesOfType(sample.quantityType, predicate: predicate, limit: 1, sortDescriptors: nil) { (results) in
             do {
                 let samples = try results()
                 guard let sampleToDelete = samples?.first else { return completion { return false } }
-                self.store.delete(sampleToDelete, withCompletion: { (success, error) in
+                let store = HKHealthStore()
+                store.delete(sampleToDelete, withCompletion: { (success, error) in
                     completion { return success && error == nil }
                 })
             } catch {
@@ -157,8 +162,4 @@ struct HealthKitClient {
             }
         }
     }
-    
-    // MARK: - Private statements
-    
-    private let store = HKHealthStore()
 }
