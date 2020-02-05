@@ -104,6 +104,8 @@ struct HealthKitClient {
                 completion { throw HealthKitClientError.notAuthorized(type: sample.quantityType) }
             case .notDetermined:
                 completion { throw HealthKitClientError.authorizationPendingToShareType(type: sample.quantityType) }
+            @unknown default:
+                ()
             }
         } else {
             completion { throw HealthKitClientError.healthDataUnavailable }
